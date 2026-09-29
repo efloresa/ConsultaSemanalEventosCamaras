@@ -1,24 +1,15 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-package atm.gob.ec.mail;
-
 /**
  *
  * @author erik.flores
  */
-import java.sql.Blob;
-import java.sql.SQLException;
-import java.util.Date;
-import java.util.Properties;
-import java.util.StringTokenizer;
-import javax.activation.DataHandler; 
-import javax.activation.FileDataSource;
+
+package atm.gob.ec.mail;
+
+import atm.gob.ec.security.AesCryptoService;
+import atm.gob.ec.security.CryptoService;
+import atm.gob.ec.utils.Utils;
+
 import javax.mail.Authenticator;
-import javax.mail.BodyPart;
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.PasswordAuthentication;
@@ -29,519 +20,167 @@ import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 
+import java.io.File;
+
+import java.util.Date;
+import java.util.Properties;
+
+import javax.activation.DataHandler;
+import javax.activation.FileDataSource;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class SendMail {
     
-    public static String GS_CLAVE ="";
-    public static String GS_TO ="";
-    public static String GS_FROM ="";
-    
-    public static String send(String ps_smtp, 
-                              String ps_from, 
-                              String ps_to, 
-                              String ps_cc, 
-                              String ps_bcc, 
-                              String ps_subject, 
-                              String ps_texto,
-                              String ps_password,
-                              String ps_puerto) {
-        
-        if(ps_to == null) 
-            return "Por favor envie la dirección de correo.";
-        
-        String ls_error;
-        SendMail.GS_CLAVE = ps_password;
-        SendMail.GS_TO = ps_to;
-        ls_error = ""; 
-        
-        StringTokenizer lst_cadenaMail;
-        lst_cadenaMail = new StringTokenizer(ps_to,";");
-         
-        ls_error = send4(ps_smtp,ps_from,ps_to,ps_cc,ps_bcc,ps_subject,ps_texto,ps_password,ps_puerto);
-        
-        return ls_error;
+    private static final Logger logger = LogManager.getLogger(SendMail.class);
+    private static final Properties properties = Utils.getProperties();
+    private static String secret = System.getProperty("atm.crypto.key");
+
+    private SendMail() {
+        // Constructor privado para evitar instanciación
     }
 
-    /*
-    * CREADO POR: ERIK FLORES
-    * FECHA: 2016-11-23
-    * PROPOSITO: ENVIO DE EMAILS A MULTIPLES CUENTAS AL MISMO TIEMPO
-    */
-    public static String send3(String ps_smtp, 
-                               String ps_from, 
-                               String ps_to, 
-                               String ps_cc, 
-                               String ps_bcc, 
-                               String ps_subject, 
-                               String ps_texto,
-                               String ps_password,
-                               String ps_puerto) {
+    /**
+     * Método send() sobrecargado que obtiene los datos de envío de correo desde el archivo de propiedades.
+     * @param ps_to
+     * @param ps_cc
+     * @param ps_bcc
+     * @param ps_subject
+     * @param ps_message
+     * @param ps_attachments
+     * @return 
+     */
+    public static String send(String ps_to, String ps_cc, String ps_bcc, String ps_subject, 
+                              String ps_message, String ps_attachments) {
 
-        String  ls_mailer = "Axis 4.00.00";
-        String  ls_error="";
-        boolean lb_debug = false;
-        int     li_optind, li_paso=0;
-        SendMail.GS_CLAVE = ps_password;
-        SendMail.GS_FROM = ps_from;
-       
+        String ps_smtp = properties.getProperty("MAIL.SERVER");
+        String ps_port = properties.getProperty("MAIL.PORT");
+        String ps_from;
+        String ps_password;
+
         try {
-            li_paso = 1;
-            if (ps_smtp == null || ps_smtp.equals(""))
-                return "Por favor, indique el servidor de correo.";
-            
-            li_paso = 2;
-            if (ps_from == null || ps_from.equals(""))
-                return "Por favor, indique la cuenta de correo emisor.";
-            
-            li_paso = 3;
-            if (ps_to == null || ps_to.equals(""))
-                return "Por favor, indique la cuenta de correo receptora.";
-            
-            li_paso = 4;
-            if (ps_texto == null || ps_texto.equals(""))
-                return "Por favor, el mensaje del correo.";
-            
-            li_paso = 5;
-            if (ps_puerto == null || ps_puerto.equals(""))
-                return "Por favor, indique el puerto de salida SMTP.";
-            
-            li_paso = 6;
-            if (ps_subject == null || ps_subject.equals(""))
-                return "Por favor, indique el asunto del correo electrónico.";
-            
-            li_paso = 7;
-            Properties props = System.getProperties();
-            
-            li_paso = 8;
-            props.put("mail.store.protocol", "SMTP");
-            props.put("mail.smtp.host", ps_smtp);
-            props.put("mail.smtp.port", ps_puerto); 
-            
-            if (ps_puerto.equals("587")){
-                props.put("mail.smtp.starttls.enable", "true");
-            }
-            if (ps_puerto.equals("465")){
-                props.put("mail.smtp.ssl.enable", "true");
-            }
-
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.user", ps_from);  
-            props.put("mail.smtp.password", ps_password); 
-
-            //autentificadorSMTP auth = new autentificadorSMTP();       
-            //Session session = Session.getInstance(props,auth); 
-
-            Session session = Session.getInstance(props, new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(SendMail.GS_FROM, SendMail.GS_CLAVE);
-                }
-            }); 
-
-            if (ps_to != null) 
-                ps_to = ps_to.replace(";",",");   
-            
-            if (ps_cc != null) 
-                ps_cc = ps_cc.replace(";",",");   
-            
-            if (ps_bcc != null) 
-                ps_bcc = ps_bcc.replace(";",","); 
-
-            li_paso = 10;
-            // construct the message
-            MimeMessage msg = new MimeMessage(session);
-            msg.setSubject(ps_subject);
-            msg.setText(ps_texto);
-            msg.setFrom(new InternetAddress(ps_from)); 
-            msg.setContent(ps_texto,"text/html;");
-            if (ps_to != null) 
-                msg.addRecipients(Message.RecipientType.TO, InternetAddress.parse(ps_to));
-            
-            if (ps_cc != null) 
-                msg.setRecipients(Message.RecipientType.CC, InternetAddress.parse(ps_cc, false));
-            
-            if (ps_bcc != null) 
-                msg.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(ps_bcc, false));
-            
-            Transport.send(msg); 
-
-        }catch (MessagingException e) {
-            ls_error = e.toString()+"-(sendmail.send3: paso:"+li_paso+", ps_from:"+ps_from+")";
+            CryptoService crypto = new AesCryptoService(secret);
+            ps_from = properties.getProperty("MAIL.FROM");
+            ps_password = crypto.decrypt(properties.getProperty("MAIL.PASS"));
+        } catch (Exception e) {
+            logger.error("Error desencriptando credenciales de correo", e);
+            return "Error obteniendo credenciales de correo.";
         }
 
-        return ls_error;
-    }       
-    
-    /*
-    * CREADO POR: ERIK FLORES
-    * FECHA: 2020-05-01
-    * PROPOSITO: SE CAMBIA LA FORMA DE AUTENTICAR AL SERVIDOR DE CORREO
-    */
-    public static String send4(String ps_smtp, 
-                               String ps_from, 
-                               String ps_to, 
-                               String ps_cc, 
-                               String ps_bcc, 
-                               String ps_subject, 
-                               String ps_texto,
-                               String ps_password,
-                               String ps_puerto) {
+        return send(ps_smtp, ps_from, ps_to, ps_cc, ps_bcc, ps_subject, ps_message, ps_password, ps_port, ps_attachments);
+    }
 
-        Session session;
-        Transport trp;
-        String  ls_mailer = "ATM 4.0.0";
-        String  ls_error="";
-        boolean lb_debug = false;
-        int     li_optind, li_paso=0;
-        GS_FROM = ps_from;
-        GS_CLAVE = ps_password;
+    /**
+     * Método principal de envío de correo.
+     * @param ps_smtp
+     * @param ps_from
+     * @param ps_to
+     * @param ps_cc
+     * @param ps_bcc
+     * @param ps_subject
+     * @param ps_message
+     * @param ps_password
+     * @param ps_port
+     * @param ps_attachments
+     * @return 
+     */
+    public static String send(String ps_smtp, String ps_from, String ps_to, String ps_cc, 
+                              String ps_bcc, String ps_subject, String ps_message, 
+                              String ps_password, String ps_port, String ps_attachments) {
 
-        try {
-            li_paso = 1;
-            if (ps_smtp == null || ps_smtp.equals(""))
-                return "Por favor, indique el servidor de correo.";
-            
-            li_paso = 2;
-            if (ps_from == null || ps_from.equals(""))
-                return "Por favor, indique la cuenta de correo emisor.";
-            
-            li_paso = 3;
-            if (ps_to == null || ps_to.equals(""))
-                return "Por favor, indique la cuenta de correo receptora.";
-            
-            li_paso = 4;
-            if (ps_texto == null || ps_texto.equals(""))
-                return "Por favor, el mensaje del correo.";
-            
-            li_paso = 5;
-            if (ps_puerto == null || ps_puerto.equals(""))
-                return "Por favor, indique el puerto de salida SMTP.";
-            
-            li_paso = 6;
-            if (ps_subject == null || ps_subject.equals(""))
-                return "Por favor, indique el asunto del correo electrónico.";
-                        
-            li_paso = 7;
-            Properties props = System.getProperties(); 
-            
-            li_paso = 8; 
-            props.put("mail.store.protocol", "SMTP");
-            props.put("mail.smtp.host", ps_smtp);
-            props.put("mail.smtp.port", ps_puerto); 
-            
-            if (ps_puerto.equals("587"))
-                props.put("mail.smtp.starttls.enable", "true");
-            
-            if (ps_puerto.equals("465"))
-                props.put("mail.smtp.ssl.enable", "true");
-
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.user", ps_from);  
-            props.put("mail.smtp.password", ps_password); 
-            
-            if (ps_to != null) 
-                ps_to = ps_to.replace(";",","); 
-            
-            if (ps_cc != null) 
-                ps_cc = ps_cc.replace(";",","); 
-            
-            if (ps_bcc != null) 
-                ps_bcc = ps_bcc.replace(";",","); 
-
-            //autentificadorSMTP auth = new autentificadorSMTP(); 
-            //session = Session.getInstance(props,auth); 
-            
-            session = Session.getDefaultInstance(props);
-            
-            li_paso = 10;
-            // construct the message
-            MimeMessage message = new MimeMessage(session);
-            message.setSubject(ps_subject);
-            message.setText(ps_texto);
-            
-            message.setContent(ps_texto,"text/html;");
-            
-            message.setFrom(new InternetAddress(ps_from)); 
-
-            if (ps_to != null) 
-                message.addRecipients(Message.RecipientType.TO, InternetAddress.parse(ps_to));
-            
-            if (ps_cc != null) 
-                message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(ps_cc, false));
-            
-            if (ps_bcc != null) 
-                message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(ps_bcc, false));
-            
-            trp = session.getTransport("smtp");
-            trp.connect(ps_smtp, ps_from, ps_password);
-            trp.sendMessage(message, message.getAllRecipients()); 
-            trp.close();
-            
-        }catch (Exception e) {
-            ls_error=e.toString()+"-(sendmail.send4: paso:"+li_paso+", ps_from:"+ps_from+")";
+        if (ps_to == null || ps_to.isEmpty()) {
+            return "Por favor, indique la dirección de correo.";
         }
-        
-        return ls_error;
-    }  
-         
-    /*
-    * CREADO POR: ERIK FLORES
-    * FECHA: 2020-05-01
-    * PROPOSITO: SE CAMBIA LA FORMA DE AUTENTICAR AL SERVIDOR DE CORREO
-    */
-    public static String sendWithAttachments(String ps_smtp, 
-                                            String ps_from, 
-                                            String ps_password,
-                                            String ps_port,                                            
-                                            String ps_to, 
-                                            String ps_cc, 
-                                            String ps_bcc, 
-                                            String ps_subject, 
-                                            String ps_message,
-                                            String ps_attachments
-                                            ) {
 
-        Session session;
-        Transport trp;
-        String  ls_mailer = "ATM 4.0.0";
-        String  ls_error="";
-        boolean lb_debug = false;
-        int     li_optind, li_paso=0;
-        GS_FROM = ps_from;
-        GS_CLAVE = ps_password;
+        return (ps_attachments == null || ps_attachments.isEmpty()) 
+            ? sendEmail(ps_smtp, ps_from, ps_to, ps_cc, ps_bcc, ps_subject, ps_message, ps_password, ps_port)
+            : sendEmailWithAttachments(ps_smtp, ps_from, ps_to, ps_cc, ps_bcc, ps_subject, ps_message, ps_password, ps_port, ps_attachments);
+    }
 
+    private static String sendEmail(String ps_smtp, String ps_from, String ps_to, String ps_cc, 
+                                    String ps_bcc, String ps_subject, String ps_message, 
+                                    String ps_password, String ps_port) {
         try {
-            li_paso = 1;
-            if (ps_smtp == null || ps_smtp.equals(""))
-                return "Por favor, indique el servidor de correo.";
-            
-            li_paso = 2;
-            if (ps_from == null || ps_from.equals(""))
-                return "Por favor, indique la cuenta de correo emisor.";
-            
-            li_paso = 3;
-            if (ps_to == null || ps_to.equals(""))
-                return "Por favor, indique la cuenta de correo receptora.";
-            
-            li_paso = 4;
-            if (ps_message == null || ps_message.equals(""))
-                return "Por favor, el mensaje del correo.";
-            
-            li_paso = 5;
-            if (ps_port == null || ps_port.equals(""))
-                return "Por favor, indique el puerto de salida SMTP.";
-            
-            li_paso = 6;
-            if (ps_subject == null || ps_subject.equals(""))
-                return "Por favor, indique el asunto del correo electrónico.";
-                        
-            li_paso = 7;
-            Properties props = System.getProperties(); 
-            
-            li_paso = 8; 
-            props.put("mail.store.protocol", "SMTP");
-            props.put("mail.smtp.host", ps_smtp);
-            props.put("mail.smtp.port", ps_port); 
-            
-            if (ps_port.equals("587"))
-                props.put("mail.smtp.starttls.enable", "true");
-            
-            if (ps_port.equals("465"))
-                props.put("mail.smtp.ssl.enable", "true");
+            Session session = createMailSession(ps_smtp, ps_from, ps_password, ps_port);
+            Message message = createMessage(session, ps_from, ps_to, ps_cc, ps_bcc, ps_subject, ps_message);
+            Transport.send(message);
+            logger.info("Correo enviado exitosamente.");
+            return "";
+        } catch (MessagingException e) {
+            logger.error("Error al enviar correo", e);
+            return e.toString();
+        }
+    }
 
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.user", ps_from);  
-            props.put("mail.smtp.password", ps_password); 
-            
-            if (ps_to != null) 
-                ps_to = ps_to.replace(";",","); 
-            
-            if (ps_cc != null) 
-                ps_cc = ps_cc.replace(";",","); 
-            
-            if (ps_bcc != null) 
-                ps_bcc = ps_bcc.replace(";",","); 
-
-            //autentificadorSMTP auth = new autentificadorSMTP(); 
-            //session = Session.getInstance(props,auth); 
-            
-            session = Session.getDefaultInstance(props);
-            
-            li_paso = 10;
-            
-            // construct the message
+    private static String sendEmailWithAttachments(String ps_smtp, String ps_from, String ps_to, String ps_cc, 
+                                                   String ps_bcc, String ps_subject, String ps_message, 
+                                                   String ps_password, String ps_port, String ps_attachments) {
+        try {
+            Session session = createMailSession(ps_smtp, ps_from, ps_password, ps_port);
             MimeMessage message = new MimeMessage(session);
-            //message.setText(ps_message);
-            
-            //Multipart mp = new MimeMultipart();
-            
-            BodyPart texto = new MimeBodyPart();
-            texto.setContent(ps_message,"text/html;");
-            
-            BodyPart adjunto = new MimeBodyPart();
-            
-            if (ps_attachments != null){
-                adjunto.setDataHandler(new DataHandler(new FileDataSource(ps_attachments)));
-                adjunto.setFileName(ps_attachments);
-            }
-            
-            MimeMultipart mime = new MimeMultipart();
-            mime.addBodyPart(texto);
-            mime.addBodyPart(adjunto);
-            
-            message.setFrom(new InternetAddress(ps_from)); 
-            
-            if (ps_to != null) 
-                message.addRecipients(Message.RecipientType.TO, InternetAddress.parse(ps_to));
-            
-            if (ps_cc != null) 
-                message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(ps_cc, false));
-            
-            if (ps_bcc != null) 
-                message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(ps_bcc, false));
-            
+            message.setFrom(new InternetAddress(ps_from));
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(ps_to.replace(";", ",")));
+            if (ps_cc != null) message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(ps_cc.replace(";", ",")));
+            if (ps_bcc != null) message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(ps_bcc.replace(";", ",")));
             message.setSubject(ps_subject);
+
+            // Adjuntar archivos
+            MimeBodyPart textPart = new MimeBodyPart();
+            textPart.setContent(ps_message, "text/html");
+
+            MimeBodyPart attachmentPart = new MimeBodyPart();
+            attachmentPart.setDataHandler(new DataHandler(new FileDataSource(ps_attachments)));
+            attachmentPart.setFileName(new File(ps_attachments).getName());
+
+            MimeMultipart multipart = new MimeMultipart();
+            multipart.addBodyPart(textPart);
+            multipart.addBodyPart(attachmentPart);
+
+            message.setContent(multipart);
             message.setSentDate(new Date());
-            message.setContent(mime);
-            
-            li_paso = 11;
-            
-            trp = session.getTransport("smtp");
-            trp.connect(ps_smtp, ps_from, ps_password);
-            trp.sendMessage(message, message.getAllRecipients()); 
-            trp.close();
-            
-        }catch (MessagingException e) {
-            ls_error=e.toString()+"-(sendmail.sendWithAttachments: paso:"+li_paso+", ps_from:"+ps_from+")";
+
+            Transport.send(message);
+            logger.info("Correo con adjunto enviado exitosamente.");
+            return "";
+        } catch (MessagingException e) {
+            logger.error("Error al enviar correo con adjunto", e);
+            return e.toString();
         }
-        
-        return ls_error;
-    }  
-         
-     
-    public static String envia_doc_adjunto(String ps_smtp, 
-                                           String ps_from, 
-                                           String ps_to, 
-                                           String ps_cc, 
-                                           String ps_bcc, 
-                                           String ps_subject, 
-                                           String ps_texto,
-                                           String ps_password,
-                                           String ps_puerto, 
-                                           Blob p_archivo1,
-                                           String ps_nombreArchivo1) {
+    }
 
-        String  ls_mailer = "ATM 1.0.0";
-        String  ls_error="";
-        boolean lb_debug = false;
-        int     li_optind, li_paso=0;
-        SendMail.GS_CLAVE = ps_password;
-        SendMail.GS_FROM = ps_from;
-        SendMail.GS_TO = ps_to;
+    private static Session createMailSession(String ps_smtp, String ps_from, String ps_password, String ps_port) {
+        Properties props = new Properties();
+        props.put("mail.smtp.host", ps_smtp);
+        props.put("mail.smtp.port", ps_port);
+        props.put("mail.smtp.auth", "true");
 
-        try {
-            li_paso = 1;
-            if (ps_smtp == null || ps_smtp.equals(""))
-                return "Por favor, indique el servidor de correo.";
-            
-            li_paso = 2;
-            if (ps_from == null || ps_from.equals(""))
-                return "Por favor, indique la cuenta de correo emisor.";
-            
-            li_paso = 3;
-            if (ps_to == null || ps_to.equals(""))
-                return "Por favor, indique la cuenta de correo receptora.";
-            
-            li_paso = 4;
-            if (ps_texto == null || ps_texto.equals(""))
-                return "Por favor, el mensaje del correo.";
-            
-            li_paso = 5;
-            if (ps_puerto == null || ps_puerto.equals(""))
-                return "Por favor, indique el puerto de salida SMTP.";
-            
-            li_paso = 6;
-            if (ps_subject == null || ps_subject.equals(""))
-                return "Por favor, indique el asunto del correo electrónico.";
-                        
-            li_paso = 7;
-            if (ps_to != null) 
-                ps_to = ps_to.replace(";",",");
-            
-            if (ps_cc != null) 
-                ps_cc = ps_cc.replace(";",",");
-            
-            if (ps_bcc != null) 
-                ps_bcc = ps_cc.replace(";",","); 
-
-            Properties props = System.getProperties();
-
-            props.put("mail.store.protocol", "SMTP");
-            props.put("mail.smtp.host", ps_smtp);
-            props.put("mail.smtp.port", ps_puerto); 
-            
-            if (ps_puerto.equals("587"))
-                props.put("mail.smtp.starttls.enable", "true");
-            
-            if (ps_puerto.equals("465"))
-                props.put("mail.smtp.ssl.enable", "true");
-            
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.user", ps_from);  
-            props.put("mail.smtp.password", ps_password); 
-            
-            //autentificadorSMTP auth = new autentificadorSMTP();
-            
-            Session mailSession = Session.getDefaultInstance(props);
-            
-            Message msg = new MimeMessage(mailSession);
-            msg.setFrom(new InternetAddress(ps_from));
-            
-            InternetAddress[] address = InternetAddress.parse(ps_to);//{new InternetAddress(ps_to)};
-
-
-            if(ps_bcc != null){
-                InternetAddress[] myBccList = InternetAddress.parse(ps_bcc);
-                msg.setRecipients(Message.RecipientType.BCC, myBccList);
-            }
-
-            if(ps_cc != null){
-                InternetAddress[] myCcList = InternetAddress.parse(ps_cc);
-                msg.setRecipients(Message.RecipientType.CC, myCcList);           
-            } 
-
-            msg.setRecipients(Message.RecipientType.TO, address);
-
-            msg.setSubject(ps_subject);
-
-            BodyPart texto = new MimeBodyPart();
-            texto.setContent(ps_texto, "text/html");
-
-            MimeMultipart multiParte = new MimeMultipart();  
-            multiParte.addBodyPart(texto);
-
-            if(ps_nombreArchivo1 != null){           
-                BodyPart adjunto = new MimeBodyPart(); 
-                adjunto.setDataHandler(new DataHandler(p_archivo1.getBytes(1, (int) p_archivo1.length()),"application/octet-stream")); 
-                adjunto.setFileName(ps_nombreArchivo1); 
-                multiParte.addBodyPart(adjunto);
-            }
-
-            msg.setContent(multiParte);
-
-            Transport transport = mailSession.getTransport("smtp");
-            transport.connect(ps_smtp, ps_from, ps_password);
-            transport.sendMessage(msg, msg.getAllRecipients());
-            transport.close();
-
-        }catch (MessagingException e) {
-            ls_error=e.toString()+ " - (sendmail.envia_doc_adjunto: paso:"+li_paso;
-        }catch (SQLException e){
-            ls_error=e.toString()+ " - (sendmail.envia_doc_adjunto: paso:"+li_paso;
-        }catch (Exception e){
-            ls_error=e.toString()+ " - (sendmail.envia_doc_adjunto: paso:"+li_paso;
+        if ("587".equals(ps_port)) {
+            props.put("mail.smtp.starttls.enable", "true");
+        } else if ("465".equals(ps_port)) {
+            props.put("mail.smtp.ssl.enable", "true");
         }
 
-        return ls_error;
-    } 
+        Authenticator authenticator = new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(ps_from, ps_password);
+            }
+        };
+
+        return Session.getInstance(props, authenticator);
+    }
+
+    private static Message createMessage(Session session, String ps_from, String ps_to, String ps_cc, 
+                                         String ps_bcc, String ps_subject, String ps_message) throws MessagingException {
+        Message message = new MimeMessage(session);
+        message.setFrom(new InternetAddress(ps_from));
+        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(ps_to.replace(";", ",")));
+        if (ps_cc != null) message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(ps_cc.replace(";", ",")));
+        if (ps_bcc != null) message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(ps_bcc.replace(";", ",")));
+        message.setSubject(ps_subject);
+        message.setContent(ps_message, "text/html");
+        message.setSentDate(new Date());
+        return message;
+    }
 }
-

@@ -1,25 +1,18 @@
-
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template archivoEx, choose Tools | Templates
- * and open the template in the editor.
- */
-package atm.gob.ec.consultaeventoscamaras;
-
 /**
- * 
+ *
  * @author erik.flores
- * 
- * 
  */
+
+package atm.gob.ec.consultaeventoscamaras;
 
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import atm.gob.ec.encriptacion.KeyManager;
 import atm.gob.ec.mail.SendMail;
 import atm.gob.ec.reportesxlsx.ReporteXLS;
+import atm.gob.ec.security.AesCryptoService;
+import atm.gob.ec.security.CryptoService;
 import atm.gob.ec.utils.Utils;
 
 import java.io.File;
@@ -40,8 +33,6 @@ import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.Properties;
 
-import javax.crypto.SecretKey;
-
 public class ConsultaSemanalEventosCamaras {
     
     LoggerContext context = Utils.configureLogging();
@@ -55,17 +46,16 @@ public class ConsultaSemanalEventosCamaras {
     String strPattern = "[^A-Za-z0-9.+()'@:%/]";
     //static SimpleDateFormat formato = new SimpleDateFormat("dd-MMMMM-yyyy HH:mm:ss", new Locale("es", "ES"));    
     static SimpleDateFormat formato = new SimpleDateFormat("yyyy-MM-dd", new Locale("es", "ES"));    
-        
-        
+    private static String secret = System.getProperty("atm.crypto.key");
+            
     public ConsultaSemanalEventosCamaras() throws Exception {
-        // TODO Auto-generated constructor stub
         // super();      
         
     }
     
     private static Connection conectar() throws Exception {
-        SecretKey key = KeyManager.loadKey();        
-        return DriverManager.getConnection(propertie.getProperty("DB.URL"), KeyManager.decrypt(propertie.getProperty("DB.USER"), key), KeyManager.decrypt(propertie.getProperty("DB.PASSWD"), key));
+        CryptoService crypto = new AesCryptoService(secret);      
+        return DriverManager.getConnection(propertie.getProperty("DB.MYSQLURL"), crypto.decrypt(propertie.getProperty("DB.MYSQLUSER")), crypto.decrypt(propertie.getProperty("DB.MYSQLPASSWD")));
     }
 
     public void verificaEventos()  {
@@ -74,13 +64,6 @@ public class ConsultaSemanalEventosCamaras {
         PreparedStatement preparedStatement = null;
         ResultSet result2 = null;
         
-        String us = propertie.getProperty("DB.MYSQLUSER");
-        String pw = propertie.getProperty("DB.MYSQLPASSWD");
-        String driver = propertie.getProperty("DB.MYSQLDRIVER");
-        //String url = propertie.getProperty("DB.MYSQLURL") + "://" + propertie.getProperty("DB.MYSQLSERVER") + ":" + propertie.getProperty("DB.MYSQLPORT") + "/" + propertie.getProperty("DB.MYSQLDATABASE");
-        String url = propertie.getProperty("DB.MYSQLURL") ;
-        
-        String mensaje = propertie.getProperty("MAIL.BODY");
         String strFechaInicio = "";
         String strFechaFin = "";        
         
@@ -88,7 +71,6 @@ public class ConsultaSemanalEventosCamaras {
         
         emailBody = propertie.getProperty("MAIL.BODY") ;
         
-        String strFechaEvento = "";
         String excelFilePath = "";
         
         try {
@@ -220,7 +202,6 @@ public class ConsultaSemanalEventosCamaras {
      * @throws java.lang.Exception
      */
     public static void main(String[] args) throws Exception {
-        // TODO code application logic here
         
         ConsultaSemanalEventosCamaras evento = new ConsultaSemanalEventosCamaras();
         
